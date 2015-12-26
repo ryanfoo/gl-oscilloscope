@@ -1,0 +1,8 @@
+# Mac OS X Clutter
+*.DS_Store
+
+# built native files
+*.o
+
+# executable
+main
