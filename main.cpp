@@ -40,18 +40,28 @@
 // Open GL
 #include "gl_processor.h" 
 
+// Audio Libraries
+#include "osc.h"
+
 // Data structure holding our variables
 typedef struct {
     SNDFILE *outfile;       // For Output Writing
     SF_INFO sf_info;        // File info parameter
+    float freq;             // Frequency
+    float vol;              // Volume
+    osc *_osc;              // Oscillator class
 } paData;
 
 // Port Audio Struct
 PaStream *g_stream;
 
+// Global Data Structure
+paData g_data;
+
 /*
  *  Function Protoypes
  */
+void initData(paData *pa);
 void keyboardFunc(unsigned char, int, int);
 void initialize_audio(PaStream **stream);
 void stop_portAudio(PaStream **stream);
@@ -67,6 +77,29 @@ void loadHelpText() {
     printf("-------------------------------------\n");
     printf("'h' - Load Help Screen Text Message\n");
     printf("'f' - Toggle Full Screen\n");
+    printf("'w' - Select Waveform\n"); 
+    printf("'=' - Increase Volume\n"); 
+    printf("'-' - Decrease Volume\n"); 
+    printf("'<' - Decrement Frequency\n");
+    printf("'>' - Increment Frequency\n");
+    printf("'q' - Quit\n");
+    printf("-------------------------------------\n\n");
+}
+
+/*
+ *  Name: wformSelectText()
+ *  Desc: Selects waveform Screen Text
+ */ 
+void wformSelectText() {
+    printf("-------------------------------------\n");
+    printf("Choose Waveform:\n");
+    printf("'0' - sine\n");
+    printf("'1' - saw\n");
+    printf("'2' - triangle\n");
+    printf("'3' - square\n");
+    printf("'4' - white noise\n");
+    printf("'5' - pink noise\n");
+    printf("'h' - Load Help Screen Text Message\n");
     printf("'q' - Quit\n");
     printf("-------------------------------------\n\n");
 }
@@ -85,33 +118,26 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
     // Data initialization
     float *inBuf    = (float *)inputBuffer;
     float *outBuf   = (float *)outputBuffer;
-    // paData *data    = (paData *)userData;
+    paData *data    = (paData *)userData;
 
     // Allocate buffer
     memset(outBuf, 0, sizeof(float)*framesPerBuffer);
-    
-    float phs_incr = 440.*2*3.14/44100;
-    static float phs = 0;
 
     // Callback loop
     for (i = 0; i < framesPerBuffer; i++) {
         // Write input to sample
         // sample = inBuf[i];
         
-        sample = sinf(phs);
-        if (sample > 0) sample = 1;
-        else sample = -1;
-        phs += phs_incr;
-
-        if (phs >= 2*3.14) phs = 0;
+        // Generate the oscillator
+        sample = data->_osc->generateSample();
 
         // Write sample to output
-        outBuf[2*i] = sample;
-        outBuf[2*i+1] = sample;
+        outBuf[2*i] = sample  * data->vol;
+        outBuf[2*i+1] = sample * data->vol;
 
         // Write to GL buffer
-        g_buffer[2*i] = sample;
-        g_buffer[2*i+1] = sample;
+        g_buffer[2*i] = sample * data->vol;
+        g_buffer[2*i+1] = sample * data->vol;
     }
     // Set flag
     g_ready = true;
@@ -123,7 +149,12 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
  *  Description: Initializes custom data
  */
 void initData(paData *pa) {
-    //TODO: put initialization calls here
+    pa->_osc = new osc(SAMPLE_RATE);
+    pa->freq = 440.f;
+    pa->_osc->setFrequency(pa->freq);
+    pa->_osc->setWaveform(osc::SIN);
+
+    pa->vol = 0.5f;
 }
 
 /*
@@ -155,12 +186,15 @@ void initData(paData *pa) {
         Pa_GetDeviceInfo( outputParameters.device )->defaultLowOutputLatency;
     outputParameters.hostApiSpecificStreamInfo = NULL;
 
+    /* Init Data */
+    initData(&g_data);
+
     /* Open audio stream */
-    err = Pa_OpenStream( &(*stream),
+    err = Pa_OpenStream(&(*stream),
             &inputParameters,
             &outputParameters,
             SAMPLE_RATE, g_buffer_size, paNoFlag, 
-            paCallback, NULL );
+            paCallback, &g_data);
 
     if (err != paNoError) {
         printf("PortAudio error: open stream: %s\n", Pa_GetErrorText(err));
@@ -211,7 +245,7 @@ void keyboardFunc(unsigned char key, int x, int y)
             loadHelpText();
             break;
 
-            // Fullscreen
+        // Fullscreen
         case 'f':
             if( !g_fullscreen )
             {
@@ -224,6 +258,53 @@ void keyboardFunc(unsigned char key, int x, int y)
 
             g_fullscreen = !g_fullscreen;
             printf("[main]: fullscreen: %s\n", g_fullscreen ? "ON" : "OFF" );
+            break;
+
+        // Volume Controls
+        case '=':
+            g_data.vol += 0.05f;
+            break;
+
+        case '-':
+            g_data.vol -= 0.05f;
+            break;
+
+        // Change Frequencies:
+        case '<':
+            g_data._osc->setFrequency(--g_data.freq);
+            break;
+
+        case '>':
+            g_data._osc->setFrequency(++g_data.freq);            
+            break;
+
+        // Waveform Controls
+        case 'w':
+            wformSelectText();
+            break;
+
+        case '0':
+           g_data._osc->setWaveform(osc::SIN);
+            break;
+
+        case '1':
+            g_data._osc->setWaveform(osc::SAW);
+            break;
+
+        case '2':
+            g_data._osc->setWaveform(osc::TRI);
+            break;
+
+        case '3':
+            g_data._osc->setWaveform(osc::SQR);
+            break;
+
+        case '4':
+            g_data._osc->setWaveform(osc::WHITE);
+            break;
+
+        case '5':
+            g_data._osc->setWaveform(osc::PINK);
             break;
 
         case 'q':

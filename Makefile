@@ -3,11 +3,10 @@
 # 
 
 # Remove MACOSX_CORE if not on OS X
-CC  	= gcc -g -D__MACOSX_CORE__ -Wno-deprecated
+CC  	= g++ -g -D__MACOSX_CORE__ -Wno-deprecated
 CFLAGS	= -g -std=c99 -Wall
+DEPS	= osc.h
 LIBS	= -lportaudio -lsndfile -framework OpenGL -framework GLUT -framework Cocoa
-# Linux Libraries
-# LINUX_LIBS = -lGL -lGLU -lglut -lportaudio
 
 OBJS	= main.o
 
