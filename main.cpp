@@ -33,6 +33,7 @@
 #include <string.h>         /* for memset */
 #include <stdbool.h>        /* for booleans */
 #include <math.h>           /* math functions */
+#include <vector>         /* variable array functions */
 
 // Sleep Routines
 #include <unistd.h>
@@ -49,7 +50,12 @@ typedef struct {
     SNDFILE *outfile;       // For Output Writing
     SF_INFO sf_info;        // File info parameter
     float freq;             // Frequency
+    int oct;                // Octave
     float vol;              // Volume
+
+    bool micInputEnabled;   // Input Enable
+    bool synthEnabled;      // Synth Enable
+
     OscGen *osc;            // Oscillator class
     BiquadFilter *bFilter;  // Biquad Filter Class
 } paData;
@@ -59,6 +65,9 @@ PaStream *g_stream;
 
 // Global Data Structure
 paData g_data;
+
+// Piano Roll Array
+std::vector<float> midi(90);
 
 /*
  *  Function Protoypes
@@ -79,11 +88,13 @@ void loadHelpText() {
     printf("-------------------------------------\n");
     printf("'h' - Load Help Screen Text Message\n");
     printf("'f' - Toggle Full Screen\n");
-    printf("'w' - Select Waveform\n"); 
+    printf("'w' - Waveform Help Text\n"); 
+    printf("'e' - Filter Help Text\n");
     printf("'=' - Increase Volume\n"); 
     printf("'-' - Decrease Volume\n"); 
     printf("'<' - Decrement Frequency\n");
     printf("'>' - Increment Frequency\n");
+    printf("Press caps to engage piano\n");
     printf("'q' - Quit\n");
     printf("-------------------------------------\n\n");
 }
@@ -107,6 +118,28 @@ void wformSelectText() {
 }
 
 /*
+ *  Name: filterHelpText()
+ *  Desc: Filter Help Text
+ */ 
+void filterHelpText() {
+    printf("-------------------------------------\n");
+    printf("Choose Filter:\n");
+    printf("'Z' - First Order LPF\n");
+    printf("'X' - First Order HPF\n");
+    printf("'C' - Second Order LPF\n");
+    printf("'V' - Second Order HPF\n");
+    printf("'B' - Second Order BPF\n");
+    printf("'N' - Second Order BSF\n");
+    printf("'z' - Second Order Butterworth LPF\n");
+    printf("'x' - Second Order Butterworth HPF\n");
+    printf("'c' - Second Order Butterworth BPF\n");
+    printf("'v' - Second Order Butterworth BSF\n");
+    printf("'h' - Load Help Screen Text Message\n");
+    printf("'q' - Quit\n");
+    printf("-------------------------------------\n\n");
+}
+
+/*
  *  Name: paCallback()
  *  Desc: callback from PortAudio
  */
@@ -124,14 +157,16 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
 
     // Allocate buffer
     memset(outBuf, 0, sizeof(float)*framesPerBuffer);
+    data->osc->setFrequency(data->freq);
 
     // Callback loop
     for (i = 0; i < framesPerBuffer; i++) {
         // Write input to sample
-        // sample = inBuf[i];
-        
+        if (data->micInputEnabled) sample = inBuf[i];
+    
         // Generate the oscillator
-        sample = data->osc->generateSample();
+        if (data->synthEnabled) sample = data->osc->generateSample();
+
         // Filter Waveform
         sample = data->bFilter->processBiquad(sample);
         
@@ -153,15 +188,19 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
  *  Description: Initializes custom data
  */
 void initData(paData *pa) {
+    pa->freq = 0.f;
+    pa->oct = 4;
+    pa->micInputEnabled = false;
+    pa->synthEnabled = true;
+
     pa->osc = new OscGen(SAMPLE_RATE);
-    pa->freq = 440.f;
     pa->osc->setFrequency(pa->freq);
     pa->osc->setWaveform(OscGen::SIN);
     
     pa->bFilter = new BiquadFilter(SAMPLE_RATE);
     pa->bFilter->setCutoffFrequency(5000.f);
     pa->bFilter->setQ(12.f);
-    pa->bFilter->setFilterType(BiquadFilter::SO_BPF_BUTTERS);
+    pa->bFilter->setFilterType(BiquadFilter::SO_LPF_BUTTERS);
 
     pa->vol = 0.5f;
 }
@@ -246,7 +285,8 @@ void stop_portAudio(PaStream **stream) {
  */
 void keyboardFunc(unsigned char key, int x, int y)
 {
-    //TODO: add function to change filter type
+    //TODO: add function to change filter fc and q
+    int octave = 16*g_data.oct;
     switch(key)
     {
         // Print Help
@@ -269,6 +309,27 @@ void keyboardFunc(unsigned char key, int x, int y)
             printf("[main]: fullscreen: %s\n", g_fullscreen ? "ON" : "OFF" );
             break;
 
+        // Filter Help
+        case 'e':
+            filterHelpText();
+            break;
+
+        // Waveform Help
+        case 'w':
+            wformSelectText();
+            break;
+
+
+        // Input on
+        case 'i':
+            g_data.micInputEnabled = !g_data.micInputEnabled;
+            break;
+
+        // Synth
+        case 'o':
+            g_data.synthEnabled = !g_data.synthEnabled;
+            break;
+
         // Volume Controls
         case '=':
             g_data.vol += 0.05f;
@@ -278,20 +339,7 @@ void keyboardFunc(unsigned char key, int x, int y)
             g_data.vol -= 0.05f;
             break;
 
-        // Change Frequencies:
-        case '<':
-            g_data.osc->setFrequency(--g_data.freq);
-            break;
-
-        case '>':
-            g_data.osc->setFrequency(++g_data.freq);            
-            break;
-
         // Waveform Controls
-        case 'w':
-            wformSelectText();
-            break;
-
         case '0':
             g_data.osc->setWaveform(OscGen::SIN);
             break;
@@ -316,6 +364,110 @@ void keyboardFunc(unsigned char key, int x, int y)
             g_data.osc->setWaveform(OscGen::PINK);
             break;
 
+        // Change Frequencies:
+        case '<':
+            if (g_data.oct > 0) g_data.oct--;
+            break;
+
+        case '>':
+            if (g_data.oct < 7) g_data.oct++;
+            break;
+
+
+        // piano roll
+        case 'A':
+            g_data.freq = midi[4+octave];
+            break;
+
+        case 'W':
+            g_data.freq = midi[5+octave];
+            break;
+
+        case 'S':
+            g_data.freq = midi[6+octave];
+            break;
+
+        case 'E':
+            g_data.freq = midi[7+octave];
+            break;
+
+        case 'D':
+            g_data.freq = midi[8+octave];
+            break;
+
+        case 'F':
+            g_data.freq = midi[9+octave];
+            break;
+
+        case 'T':
+            g_data.freq = midi[10+octave];
+            break;
+
+        case 'G':
+            g_data.freq = midi[11+octave];
+            break;
+
+        case 'Y':
+            g_data.freq = midi[12+octave];
+            break;
+
+        case 'H':
+            g_data.freq = midi[13+octave];
+            break;
+
+        case 'U':
+            g_data.freq = midi[14+octave];
+            break;
+
+        case 'J':
+            g_data.freq = midi[15+octave];
+            break;
+
+        case 'K':
+            g_data.freq = midi[16+octave];
+            break;
+
+        // Filter options
+        case 'Z':
+            g_data.bFilter->setFilterType(BiquadFilter::FO_LPF);
+            break;
+
+        case 'X':
+            g_data.bFilter->setFilterType(BiquadFilter::FO_HPF);
+            break;
+
+        case 'C':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_LPF);
+            break;
+
+        case 'V':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_HPF);
+            break;
+
+        case 'B':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_BPF);
+            break;
+
+        case 'N':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_BSF);
+            break;
+
+        case 'z':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_LPF_BUTTERS);
+            break;
+
+        case 'x':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_HPF_BUTTERS);
+            break;
+
+        case 'c':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_BPF_BUTTERS);
+            break;
+
+        case 'v':
+            g_data.bFilter->setFilterType(BiquadFilter::SO_BSF_BUTTERS);
+            break;
+
         case 'q':
             // Close Stream before exiting
             stop_portAudio(&g_stream);
@@ -325,11 +477,17 @@ void keyboardFunc(unsigned char key, int x, int y)
     }
 }
 
-
 /*
  *  Description: Main Function
  */
 int main(int argc, char **argv) {
+
+    // Create MIDI values
+    midi[0] = 0;
+    for (int i = 1; i < 90; i++) {
+        float freq = powf(powf(2.f, 1.f/12.f), i-49)*220.f;
+        midi[i] = freq;
+    }
 
     // Initialize GLUT
     initialize_glut(argc, argv);
