@@ -1,7 +1,7 @@
 /*
  * ==================================================================================
  *
- *      Filename:   osc.h
+ *      Filename:   OscGen.h
  *
  *   Description:   Oscillator Waveform Generator
  *  
@@ -14,39 +14,39 @@
  * ==================================================================================
  */
 
-#ifndef OSC_H
-#define OSC_H
+#ifndef OSCGEN_H
+#define OSCGEN_H
 
 #include <math.h>
 
-class osc {
+class OscGen {
 public:
     // Waveform Type
     enum WAVEFORM {
-        SIN = 0,
-        SAW = 1,
-        TRI = 2,
-        SQR = 3,
-        WHITE = 4,
-        PINK = 5,
+        SIN = 0,            // Sine Wave
+        SAW = 1,            // Sawtooth Wave
+        TRI = 2,            // Triangle Wave
+        SQR = 3,            // Square Wave
+        WHITE = 4,          // White Noise 
+        PINK = 5,           // Pink Noise
     };
 
     // Initializations
-    osc(void) { 
+    OscGen () { 
         srate = 44100.f; 
         freq = 0.f; 
         phs = 0.f; 
         phs_incr = 2*M_PI*freq/srate; 
         if (freq != 0) T = srate/freq;
     };
-    osc(float _srate) { 
+    OscGen (float _srate) { 
         srate = _srate; 
         freq = 0;
         phs = 0; 
         phs_incr = 2*M_PI*freq/srate; 
         T = srate/freq;
     };
-    ~osc();
+    ~OscGen();
 
     // Setters
     void setFrequency(float _freq) { freq = _freq; phs_incr = 2*M_PI*freq/srate; T = srate/freq; };
@@ -62,7 +62,7 @@ public:
 
     // Waveform Selector
     float generateSample() {
-
+        //TODO: silence when switching waveforms
         float sample = 0;
         static float saw_sample;
 
@@ -120,7 +120,7 @@ public:
                 state[1] = P[1] * (state[1] - temp) + temp;
                 temp = float(rand());        
                 state[2] = P[2] * (state[2] - temp) + temp;
-                sample = (A[0]*state[0] + A[1]*state[1] + A[2]*state[2])*RMI2 - offset;
+                sample = ((A[0]*state[0] + A[1]*state[1] + A[2]*state[2])*RMI2 - offset)*2.f;
                 break;
             }
 
@@ -139,4 +139,4 @@ private:
     const float P[3] = { 0.3190,  0.7756,  0.9613  };
 };
 
-#endif  // OSC_H
+#endif  // OSCGEN_H

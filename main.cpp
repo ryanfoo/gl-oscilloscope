@@ -41,7 +41,8 @@
 #include "gl_processor.h" 
 
 // Audio Libraries
-#include "osc.h"
+#include "OscGen.h"
+#include "BiquadFilter.h"
 
 // Data structure holding our variables
 typedef struct {
@@ -49,7 +50,8 @@ typedef struct {
     SF_INFO sf_info;        // File info parameter
     float freq;             // Frequency
     float vol;              // Volume
-    osc *_osc;              // Oscillator class
+    OscGen *osc;            // Oscillator class
+    BiquadFilter *bFilter;  // Biquad Filter Class
 } paData;
 
 // Port Audio Struct
@@ -129,8 +131,10 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
         // sample = inBuf[i];
         
         // Generate the oscillator
-        sample = data->_osc->generateSample();
-
+        sample = data->osc->generateSample();
+        // Filter Waveform
+        sample = data->bFilter->processBiquad(sample);
+        
         // Write sample to output
         outBuf[2*i] = sample  * data->vol;
         outBuf[2*i+1] = sample * data->vol;
@@ -149,10 +153,15 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
  *  Description: Initializes custom data
  */
 void initData(paData *pa) {
-    pa->_osc = new osc(SAMPLE_RATE);
+    pa->osc = new OscGen(SAMPLE_RATE);
     pa->freq = 440.f;
-    pa->_osc->setFrequency(pa->freq);
-    pa->_osc->setWaveform(osc::SIN);
+    pa->osc->setFrequency(pa->freq);
+    pa->osc->setWaveform(OscGen::SIN);
+    
+    pa->bFilter = new BiquadFilter(SAMPLE_RATE);
+    pa->bFilter->setCutoffFrequency(5000.f);
+    pa->bFilter->setQ(12.f);
+    pa->bFilter->setFilterType(BiquadFilter::SO_BPF_BUTTERS);
 
     pa->vol = 0.5f;
 }
@@ -237,8 +246,8 @@ void stop_portAudio(PaStream **stream) {
  */
 void keyboardFunc(unsigned char key, int x, int y)
 {
-    //printf("key: %c\n", key);
-    switch( key )
+    //TODO: add function to change filter type
+    switch(key)
     {
         // Print Help
         case 'h':
@@ -271,11 +280,11 @@ void keyboardFunc(unsigned char key, int x, int y)
 
         // Change Frequencies:
         case '<':
-            g_data._osc->setFrequency(--g_data.freq);
+            g_data.osc->setFrequency(--g_data.freq);
             break;
 
         case '>':
-            g_data._osc->setFrequency(++g_data.freq);            
+            g_data.osc->setFrequency(++g_data.freq);            
             break;
 
         // Waveform Controls
@@ -284,27 +293,27 @@ void keyboardFunc(unsigned char key, int x, int y)
             break;
 
         case '0':
-           g_data._osc->setWaveform(osc::SIN);
+            g_data.osc->setWaveform(OscGen::SIN);
             break;
 
         case '1':
-            g_data._osc->setWaveform(osc::SAW);
+            g_data.osc->setWaveform(OscGen::SAW);
             break;
 
         case '2':
-            g_data._osc->setWaveform(osc::TRI);
+            g_data.osc->setWaveform(OscGen::TRI);
             break;
 
         case '3':
-            g_data._osc->setWaveform(osc::SQR);
+            g_data.osc->setWaveform(OscGen::SQR);
             break;
 
         case '4':
-            g_data._osc->setWaveform(osc::WHITE);
+            g_data.osc->setWaveform(OscGen::WHITE);
             break;
 
         case '5':
-            g_data._osc->setWaveform(osc::PINK);
+            g_data.osc->setWaveform(OscGen::PINK);
             break;
 
         case 'q':

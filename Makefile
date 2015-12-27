@@ -3,9 +3,9 @@
 # 
 
 # Remove MACOSX_CORE if not on OS X
-CC  	= g++ -g -D__MACOSX_CORE__ -Wno-deprecated
+CC  	= g++ -g -D__MACOSX_CORE__ -Wno-deprecated-declarations
 CFLAGS	= -g -std=c99 -Wall
-DEPS	= osc.h
+DEPS	= OscGen.h BiquadFilter.h
 LIBS	= -lportaudio -lsndfile -framework OpenGL -framework GLUT -framework Cocoa
 
 OBJS	= main.o
