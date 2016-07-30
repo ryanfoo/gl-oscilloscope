@@ -5,7 +5,7 @@
 # Remove MACOSX_CORE if not on OS X
 CC  	= g++ -g -D__MACOSX_CORE__ -Wno-deprecated-declarations
 CFLAGS	= -g -std=c99 -Wall
-DEPS	= OscGen.h BiquadFilter.h
+DEPS	= Oscillators/* Filters/* Effects/*
 LIBS	= -lportaudio -lsndfile -framework OpenGL -framework GLUT -framework Cocoa
 
 OBJS	= main.o

@@ -44,6 +44,7 @@
 // Audio Libraries
 #include "OscGen.h"
 #include "BiquadFilter.h"
+#include "ADSR.h"
 
 // Data structure holding our variables
 typedef struct {
@@ -55,9 +56,11 @@ typedef struct {
 
     bool micInputEnabled;   // Input Enable
     bool synthEnabled;      // Synth Enable
+    bool filterEnabled;     // Filter Enable
 
     OscGen *osc;            // Oscillator class
     BiquadFilter *bFilter;  // Biquad Filter Class
+    ADSR *env;              // ADSR class
 } paData;
 
 // Port Audio Struct
@@ -168,15 +171,21 @@ static int paCallback(const void *inputBuffer, void *outputBuffer,
         if (data->synthEnabled) sample = data->osc->generateSample();
 
         // Filter Waveform
-        sample = data->bFilter->processBiquad(sample);
+        if (data->filterEnabled) sample = data->bFilter->processBiquad(sample);
         
+        // ADSR Envelope
+        //TODO: fix this
+        // if (data->synthEnabled) sample *= data->env->processEnvelope();
+
         // Write sample to output
         outBuf[2*i] = sample  * data->vol;
         outBuf[2*i+1] = sample * data->vol;
 
         // Write to GL buffer
-        g_buffer[2*i] = sample * data->vol;
-        g_buffer[2*i+1] = sample * data->vol;
+        // if (!data->osc->isWrapped()) {
+            g_buffer[2*i] = sample * data->vol;
+            g_buffer[2*i+1] = sample * data->vol;
+        // }
     }
     // Set flag
     g_ready = true;
@@ -192,6 +201,7 @@ void initData(paData *pa) {
     pa->oct = 4;
     pa->micInputEnabled = false;
     pa->synthEnabled = true;
+    pa->filterEnabled = true;
 
     pa->osc = new OscGen(SAMPLE_RATE);
     pa->osc->setFrequency(pa->freq);
@@ -201,6 +211,13 @@ void initData(paData *pa) {
     pa->bFilter->setCutoffFrequency(5000.f);
     pa->bFilter->setQ(12.f);
     pa->bFilter->setFilterType(BiquadFilter::SO_LPF_BUTTERS);
+
+    pa->env = new ADSR(SAMPLE_RATE);
+    pa->env->setValue(0);
+    pa->env->setAttackTime(0.01);
+    pa->env->setSustain(1);
+    pa->env->setDecayTime(0.1);
+    pa->env->setReleaseTime(0.01);
 
     pa->vol = 0.5f;
 }
@@ -287,7 +304,7 @@ void keyboardFunc(unsigned char key, int x, int y)
 {
     //TODO: add function to change filter fc and q
     int octave = 16*g_data.oct;
-    switch(key)
+    switch (key)
     {
         // Print Help
         case 'h':
@@ -312,6 +329,10 @@ void keyboardFunc(unsigned char key, int x, int y)
         // Filter Help
         case 'e':
             filterHelpText();
+            break;
+
+        case 'u':
+            g_data.filterEnabled = !g_data.filterEnabled;
             break;
 
         // Waveform Help
@@ -376,55 +397,55 @@ void keyboardFunc(unsigned char key, int x, int y)
 
         // piano roll
         case 'A':
-            g_data.freq = midi[4+octave];
+            g_data.freq = midi[24+octave];
             break;
 
         case 'W':
-            g_data.freq = midi[5+octave];
+            g_data.freq = midi[25+octave];
             break;
 
         case 'S':
-            g_data.freq = midi[6+octave];
+            g_data.freq = midi[26+octave];
             break;
 
         case 'E':
-            g_data.freq = midi[7+octave];
+            g_data.freq = midi[27+octave];
             break;
 
         case 'D':
-            g_data.freq = midi[8+octave];
+            g_data.freq = midi[28+octave];
             break;
 
         case 'F':
-            g_data.freq = midi[9+octave];
+            g_data.freq = midi[29+octave];
             break;
 
         case 'T':
-            g_data.freq = midi[10+octave];
+            g_data.freq = midi[30+octave];
             break;
 
         case 'G':
-            g_data.freq = midi[11+octave];
+            g_data.freq = midi[31+octave];
             break;
 
         case 'Y':
-            g_data.freq = midi[12+octave];
+            g_data.freq = midi[32+octave];
             break;
 
         case 'H':
-            g_data.freq = midi[13+octave];
+            g_data.freq = midi[33+octave];
             break;
 
         case 'U':
-            g_data.freq = midi[14+octave];
+            g_data.freq = midi[34+octave];
             break;
 
         case 'J':
-            g_data.freq = midi[15+octave];
+            g_data.freq = midi[35+octave];
             break;
 
         case 'K':
-            g_data.freq = midi[16+octave];
+            g_data.freq = midi[36+octave];
             break;
 
         // Filter options
@@ -485,7 +506,7 @@ int main(int argc, char **argv) {
     // Create MIDI values
     midi[0] = 0;
     for (int i = 1; i < 90; i++) {
-        float freq = powf(powf(2.f, 1.f/12.f), i-49)*220.f;
+        float freq = powf(powf(2.f, 1.f/12.f), i-69)*440.f;
         midi[i] = freq;
     }
 
